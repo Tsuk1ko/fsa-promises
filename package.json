@@ -1,0 +1,22 @@
+{
+  "name": "@tsuk1ko/fsa-promises",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.7",
+    "fsa-mock": "^1.0.0",
+    "typescript": "^5.5.4"
+  }
+}

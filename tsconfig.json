@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "DOM.AsyncIterable", "WebWorker"],
+    "target": "ESNext",
+    "module": "CommonJS",
+
+    "moduleResolution": "Node10",
+    "noEmit": false,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "dist",
+
+    // Best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Some stricter flags (disabled by default)
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": ["src/**/*"]
+}
