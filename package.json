@@ -1,21 +1,46 @@
 {
   "name": "@tsuk1ko/fsa-promises",
   "version": "1.0.0",
-  "type": "commonjs",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "import": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "require": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "repository": "github:Tsuk1ko/fsa-promises",
+  "keywords": [
+    "node",
+    "fs",
+    "fsa",
+    "opfs",
+    "promises",
+    "fs promises",
+    "file system",
+    "file system api",
+    "file system access api",
+    "origin private file system"
+  ],
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
-    "test": "bun test"
+    "build": "tsc && tsc -p tsconfig.esm.json && bun run scripts/postBuild.ts",
+    "test": "bun test",
+    "postversion": "tpv"
   },
   "dependencies": {
     "buffer": "^6.0.3"
   },
   "devDependencies": {
-    "@types/bun": "^1.1.7",
+    "@tsuk1ko/postversion": "^1.0.2",
+    "@types/bun": "latest",
     "fsa-mock": "^1.0.0",
     "typescript": "^5.5.4"
   }

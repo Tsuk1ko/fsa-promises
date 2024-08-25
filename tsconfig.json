@@ -7,7 +7,6 @@
     "moduleResolution": "Node10",
     "noEmit": false,
     "declaration": true,
-    "sourceMap": true,
     "outDir": "dist",
 
     // Best practices
