@@ -21,11 +21,11 @@
     "fsa",
     "opfs",
     "promises",
-    "fs promises",
-    "file system",
-    "file system api",
-    "file system access api",
-    "origin private file system"
+    "fs-promises",
+    "file-system",
+    "file-system-api",
+    "file-system-access-api",
+    "origin-private-file-system"
   ],
   "files": [
     "dist"
