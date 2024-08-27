@@ -7,7 +7,7 @@ import { joinPaths, pathsToDirsAndFilename, splitPath, splitPathToDirsAndFilenam
 import { decodeBuffer, encodeString } from './textCoder';
 import { createError, FsaError, FsaErrorCode } from './error';
 
-export interface FsaPromiseOptions {
+export interface FsaPromisesOptions {
   root?: string | FileSystemDirectoryHandle | Promise<FileSystemDirectoryHandle>;
   useSyncAccessHandleForFile?: boolean;
 }
@@ -17,7 +17,7 @@ export class FsaPromises {
 
   private readonly useSyncAccessHandleForFile: boolean;
 
-  constructor(options?: FsaPromiseOptions | FsaPromiseOptions['root']) {
+  constructor(options?: FsaPromisesOptions | FsaPromisesOptions['root']) {
     const { root = '', useSyncAccessHandleForFile = false } =
       typeof options === 'string' || options instanceof FileSystemDirectoryHandle || options instanceof Promise
         ? { root: options }
