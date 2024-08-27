@@ -31,7 +31,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.esm.json && bun run scripts/postBuild.ts",
+    "build": "rimraf dist && tsc && tsc -p tsconfig.esm.json && bun run scripts/postBuild.ts",
     "test": "bun test",
     "postversion": "tpv"
   },
@@ -42,6 +42,7 @@
     "@tsuk1ko/postversion": "^1.0.2",
     "@types/bun": "latest",
     "fsa-mock": "^1.0.0",
+    "rimraf": "^6.0.1",
     "typescript": "^5.5.4"
   }
 }
