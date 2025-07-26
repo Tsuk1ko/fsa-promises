@@ -386,3 +386,4 @@ export class FsaPromises {
 export type { PathLike } from './types';
 export * from './dirent';
 export * from './stat';
+export { FsaError, FsaErrorCode } from './error';
