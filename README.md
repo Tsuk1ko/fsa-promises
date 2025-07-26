@@ -25,7 +25,7 @@ bun add @tsuk1ko/fsa-promises
 ## Usage
 
 ```ts
-import { FsaPromises } from 'fsa-promises';
+import { FsaPromises } from '@tsuk1ko/fsa-promises';
 
 // Use `navigator.storage.getDirectory()` as root
 const fs = new FsaPromises();
