@@ -85,7 +85,6 @@ export class FsaPromises {
       return;
     }
     this.rootHandle = Promise.resolve(root);
-    this.readFile('', { encoding: 'ascii' });
   }
 
   readFile(path: PathLike, options?: { encoding?: null } | null): Promise<Buffer>;
