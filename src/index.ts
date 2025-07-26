@@ -50,7 +50,7 @@ export class FsaPromises {
     if (typeof flag === 'number') throw new Error('Not implemented: number flag');
     const isAppend = flag?.includes('a');
     const failsWhenExist = flag?.includes('x');
-    if (failsWhenExist && (await this.exist(path))) {
+    if (failsWhenExist && (await this.exists(path))) {
       throw createError(FsaErrorCode.EEXIST, path, 'open');
     }
     const handle = await this.getFileHandleByPath(path, { create: true });
@@ -146,7 +146,7 @@ export class FsaPromises {
     }
   }
 
-  async exist(path: PathLike) {
+  async exists(path: PathLike) {
     try {
       await this.getFileHandleByPath(path);
       return true;
