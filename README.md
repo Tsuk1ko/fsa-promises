@@ -51,6 +51,7 @@ await fs.writeFile('file.txt', 'hello world');
 interface FsaPromisesOptions {
   root?: string | FileSystemDirectoryHandle | Promise<FileSystemDirectoryHandle>;
   useSyncAccessHandleForFile?: boolean;
+  cacheDirHandle?: boolean;
 }
 ```
 
@@ -61,6 +62,16 @@ When it is `true`, the library will use `createSyncAccessHandle()` instead of `c
 It is only usable inside dedicated Web Workers with the origin private file system.
 
 For more information, please check [here](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemFileHandle/createSyncAccessHandle).
+
+#### `cacheDirHandle`
+
+Whether to enable directory handle cache.
+
+When it is `true`, all `FileSystemDirectoryHandle` objects created at runtime will be cached until they are deleted via `rmdir()` or manually by calling `clearDirCache()`.
+
+This is useful when you need to frequently read or write files in deep directories, as it avoids creating new `FileSystemDirectoryHandle` objects layer by layer each time.
+
+However, please note that if other processes are also operating on the file system, this may lead to unexpected behavior. For example, if a directory is deleted elsewhere, you may need to call `clearDirCache()` at the appropriate time.
 
 ### `readFile(path[, options])`
 
@@ -77,6 +88,12 @@ Refer to [fsPromises.writeFile](https://nodejs.org/api/fs.html#fspromiseswritefi
 `flush` is usable only when `useSyncAccessHandleForFile` is `true`.
 
 `signal` is not usable when `useSyncAccessHandleForFile` is `true`.
+
+#### `options.ensureDir`
+
+This option is added for convenience and does not exist in the standard options.
+
+When it is set to `true`, directories will be created recursively and automatically.
 
 ### `unlink(path)`
 
@@ -100,7 +117,7 @@ Refer to [fsPromises.rmdir](https://nodejs.org/api/fs.html#fspromisesrmdirpath-o
 
 `maxRetries` and `retryDelay` are not supported.
 
-### `exist(path)`
+### `exists(path)`
 
 This API does not exist in node fsPromises. It is provided for convenience.
 
@@ -123,3 +140,7 @@ Not implemented, don't use.
 ### `chmod(path, mode)`
 
 Do nothing, just for compatibility.
+
+### `clearDirCache()`
+
+Clear directory handle cache.

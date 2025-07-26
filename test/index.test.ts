@@ -96,6 +96,23 @@ describe('writeFile', () => {
     await fs.writeFile(filepath, CONTENT_BUFFER);
     expectSameBuffer(await fs.readFile(filepath), CONTENT_BUFFER);
   });
+
+  test('ensureDir: false', () => {
+    const fs = new FsaPromises();
+    const dir = 'foo/bar';
+    const filepath = `${dir}/test.txt`;
+    expect(fs.writeFile(filepath, CONTENT_BUFFER)).rejects.toBeTruthy();
+    expect(mock.exists(filepath)).toBeFalse();
+  });
+
+  test('ensureDir: true', async () => {
+    const fs = new FsaPromises();
+    const dir = 'foo/bar';
+    const filepath = `${dir}/test.txt`;
+    expect(fs.writeFile(filepath, CONTENT_BUFFER, { ensureDir: true })).resolves.toBeUndefined();
+    expect(mock.exists(filepath)).toBeTrue();
+    expectSameBuffer(await fs.readFile(filepath), CONTENT_BUFFER);
+  });
 });
 
 describe('unlink', () => {
@@ -308,5 +325,73 @@ describe('stat', () => {
     const fs = new FsaPromises();
     expect(fs.stat('not-exist')).rejects.toBeTruthy();
     expect(fs.stat('dir1/not-exist')).rejects.toBeTruthy();
+  });
+});
+
+describe('exists', () => {
+  test('file & dir', async () => {
+    const fs = new FsaPromises();
+    const dir = 'foo/bar';
+    const filepath = `${dir}/test.txt`;
+    mock.makeDir(dir);
+    mock.createFile(filepath, CONTENT_BUFFER);
+    expect(await fs.exists(filepath)).toBeTrue();
+    expect(await fs.exists(dir)).toBeTrue();
+    expect(await fs.exists('foo')).toBeTrue();
+    expect(await fs.exists('foo/not-exist')).toBeFalse();
+    expect(await fs.exists('not-exist')).toBeFalse();
+  });
+});
+
+describe('cache dir handle', () => {
+  test('all', async () => {
+    const dir = 'foo/bar';
+    const filepath = `${dir}/test.txt`;
+    mock.makeDir(dir);
+
+    const fs = new FsaPromises({ cacheDirHandle: true });
+    // @ts-ignore
+    const dirCache = fs.dirCache!;
+
+    expect(dirCache).toBeDefined();
+
+    const checkFooBarDir = async () => expect((await dirCache.get('foo'))?.children.has('bar')).toBeTrue();
+
+    // write
+    await fs.writeFile(filepath, CONTENT_BUFFER);
+    await checkFooBarDir();
+    expect(await fs.exists(filepath)).toBeTrue();
+    expectSameBuffer(await fs.readFile(filepath), CONTENT_BUFFER);
+    expectSameBuffer(await fs.readFile(filepath), CONTENT_BUFFER);
+
+    // overwrite
+    const randomContent = Buffer.from(Math.random().toString());
+    await fs.writeFile(filepath, randomContent);
+    await checkFooBarDir();
+    expect(await fs.exists(filepath)).toBeTrue();
+    expectSameBuffer(await fs.readFile(filepath), randomContent);
+
+    // unlink
+    await fs.unlink(filepath);
+    await checkFooBarDir();
+    expect(await fs.exists(filepath)).toBeFalse();
+
+    // rmdir
+    await fs.rmdir(dir);
+    expect((await dirCache.get('foo'))?.children.has('bar')).toBeFalse();
+    expect(dirCache.has('foo')).toBeTrue();
+    expect(await fs.exists(filepath)).toBeFalse();
+
+    // rmdir in root
+    await fs.rmdir('foo');
+    expect(dirCache.has('foo')).toBeFalse();
+    expect(await fs.exists('foo')).toBeFalse();
+
+    // clear cache
+    expect(dirCache.size).toBe(0);
+    await fs.mkdir('foo');
+    expect(dirCache.size).toBe(1);
+    fs.clearDirCache();
+    expect(dirCache.size).toBe(0);
   });
 });

@@ -8,8 +8,55 @@ import { decodeBuffer, encodeString } from './textCoder';
 import { createError, FsaError, FsaErrorCode } from './error';
 
 export interface FsaPromisesOptions {
+  /** File system root */
   root?: string | FileSystemDirectoryHandle | Promise<FileSystemDirectoryHandle>;
+  /** When it is `true`, the library will use `createSyncAccessHandle()` instead of `createWritable()` to write file. */
   useSyncAccessHandleForFile?: boolean;
+  /** Whether to enable dir handle cache */
+  cacheDirHandle?: boolean;
+}
+
+export type FsaPromisesWriteFileOptions =
+  | (ObjectEncodingOptions & Abortable & { flag?: OpenMode; flush?: boolean; ensureDir?: boolean })
+  | BufferEncoding
+  | null;
+
+interface DirCacheNode {
+  handle: FileSystemDirectoryHandle;
+  children: DirCache;
+}
+
+type DirCache = Map<string, Promise<DirCacheNode>>;
+
+interface GetDirHandleByPathOptions {
+  path: PathLike;
+  options?: FileSystemGetDirectoryOptions;
+  rootHandle?: Promise<FileSystemDirectoryHandle>;
+}
+
+interface GetDirHandleByPathsOptions {
+  paths: string[];
+  path?: PathLike;
+  options?: FileSystemGetDirectoryOptions;
+  rootHandle?: Promise<FileSystemDirectoryHandle>;
+  output?: GetDirHandleByPathsOutput;
+}
+
+interface GetDirHandleByPathsOutput {
+  dirCache?: DirCache;
+}
+
+interface GetFileHandleByPathOptions {
+  path: PathLike;
+  options?: FileSystemGetDirectoryOptions;
+  ensureDir?: boolean;
+}
+
+interface GetFileHandleByPathsOptions {
+  paths: string[];
+  options?: FileSystemGetFileOptions;
+  path?: PathLike;
+  ensureDir?: boolean;
 }
 
 export class FsaPromises {
@@ -17,14 +64,24 @@ export class FsaPromises {
 
   private readonly useSyncAccessHandleForFile: boolean;
 
+  private readonly dirCache?: DirCache;
+
   constructor(options?: FsaPromisesOptions | FsaPromisesOptions['root']) {
-    const { root = '', useSyncAccessHandleForFile = false } =
-      typeof options === 'string' || options instanceof FileSystemDirectoryHandle || options instanceof Promise
-        ? { root: options }
-        : options || {};
+    const {
+      root = '',
+      useSyncAccessHandleForFile = false,
+      cacheDirHandle = false,
+    } = typeof options === 'string' || options instanceof FileSystemDirectoryHandle || options instanceof Promise
+      ? { root: options }
+      : options || {};
     this.useSyncAccessHandleForFile = useSyncAccessHandleForFile;
+    if (cacheDirHandle) this.dirCache = new Map();
     if (typeof root === 'string') {
-      this.rootHandle = this.getDirHandleByPath(root, { create: true }, navigator.storage.getDirectory());
+      this.rootHandle = this.getDirHandleByPath({
+        path: root,
+        options: { create: true },
+        rootHandle: navigator.storage.getDirectory(),
+      });
       return;
     }
     this.rootHandle = Promise.resolve(root);
@@ -35,7 +92,7 @@ export class FsaPromises {
   readFile(path: PathLike, options: { encoding: BufferEncoding } | BufferEncoding): Promise<string>;
   async readFile(path: PathLike, options?: ObjectEncodingOptions | BufferEncoding | null): Promise<string | Buffer> {
     const { encoding } = this.normalizeOptions(options);
-    const handle = await this.getFileHandleByPath(path);
+    const handle = await this.getFileHandleByPath({ path });
     const content = await (await handle.getFile()).arrayBuffer();
     if (encoding) return decodeBuffer(content, encoding);
     return Buffer.from(content);
@@ -44,16 +101,16 @@ export class FsaPromises {
   async writeFile(
     path: PathLike,
     data: Buffer | ArrayBuffer | ArrayBufferView | Blob | string,
-    options?: (ObjectEncodingOptions & { flag?: OpenMode; flush?: boolean } & Abortable) | BufferEncoding | null,
+    options?: FsaPromisesWriteFileOptions,
   ): Promise<void> {
-    const { encoding, signal, flag, flush } = this.normalizeOptions(options);
+    const { encoding, signal, flag, flush, ensureDir } = this.normalizeOptions(options);
     if (typeof flag === 'number') throw new Error('Not implemented: number flag');
     const isAppend = flag?.includes('a');
     const failsWhenExist = flag?.includes('x');
     if (failsWhenExist && (await this.exists(path))) {
       throw createError(FsaErrorCode.EEXIST, path, 'open');
     }
-    const handle = await this.getFileHandleByPath(path, { create: true });
+    const handle = await this.getFileHandleByPath({ path, options: { create: true }, ensureDir });
     if (encoding && typeof data === 'string') {
       data = encodeString(data, encoding);
     }
@@ -87,7 +144,7 @@ export class FsaPromises {
 
   async unlink(path: PathLike): Promise<void> {
     const { dirs, filename } = splitPathToDirsAndFilename(path);
-    const handle = await this.getDirHandleByPaths(dirs, undefined, path);
+    const handle = await this.getDirHandleByPaths({ paths: dirs, path });
     try {
       await handle.getFileHandle(filename);
     } catch (e) {
@@ -107,7 +164,7 @@ export class FsaPromises {
   ): Promise<string[] | Buffer[] | Dirent[]> {
     const { encoding, withFileTypes, recursive } = this.normalizeOptions(options);
     const paths = splitPath(path);
-    const handle = await this.getDirHandleByPaths(paths, undefined, path);
+    const handle = await this.getDirHandleByPaths({ paths, path });
     if (withFileTypes) return this.readdirToDirentByHandle(joinPaths(paths), handle, recursive);
     const files = await this.readdirByHandle('', handle, recursive);
     return encoding === 'buffer' ? files.map(f => Buffer.from(f)) : files;
@@ -119,21 +176,36 @@ export class FsaPromises {
     const paths = splitPath(path);
     if (options?.recursive) {
       if (!paths.length) return '.';
-      await this.getDirHandleByPaths(paths, { create: true }, path);
+      await this.getDirHandleByPaths({ paths, options: { create: true }, path });
       // Not fully following the original implementation
       return joinPaths(paths);
     }
     const { dirs, filename } = pathsToDirsAndFilename(paths);
-    const parent = await this.getDirHandleByPaths(dirs, undefined, path);
+    const output: GetDirHandleByPathsOutput = {};
+    const parent = await this.getDirHandleByPaths({ paths: dirs, path, output });
     if (await this.isDirExistOnHandle(parent, filename)) {
       throw createError(FsaErrorCode.EEXIST, path, 'mkdir');
     }
-    await parent.getDirectoryHandle(filename, { create: true });
+    if (output.dirCache?.has(filename)) {
+      await output.dirCache.get(filename);
+      return;
+    }
+    const handlePromise = parent.getDirectoryHandle(filename, { create: true });
+    output.dirCache?.set(
+      filename,
+      handlePromise.then(handle => ({ handle, children: new Map() })),
+    );
+    await handlePromise.catch(e => {
+      output.dirCache?.delete(filename);
+      throw e;
+    });
   }
 
   async rmdir(path: PathLike, options?: { recursive?: boolean }): Promise<void> {
     const { dirs, filename } = splitPathToDirsAndFilename(path);
-    const handle = await this.getDirHandleByPaths(dirs, undefined, path);
+    const output: GetDirHandleByPathsOutput = {};
+    const handle = await this.getDirHandleByPaths({ paths: dirs, path, output });
+    output.dirCache?.delete(filename);
     try {
       await handle.getDirectoryHandle(filename);
     } catch (e) {
@@ -148,7 +220,7 @@ export class FsaPromises {
 
   async exists(path: PathLike) {
     try {
-      await this.getFileHandleByPath(path);
+      await this.getFileHandleByPath({ path });
       return true;
     } catch (e) {
       return this.isTypeMismatchError(e);
@@ -162,7 +234,7 @@ export class FsaPromises {
     const paths = splitPath(path);
     if (!paths.length) return StatConstructor.create();
     try {
-      const handle = await this.getFileHandleByPaths(paths, undefined, path);
+      const handle = await this.getFileHandleByPaths({ paths, path });
       const file = await handle.getFile();
       return StatConstructor.create(file);
     } catch (e) {
@@ -201,6 +273,13 @@ export class FsaPromises {
    * Do nothing, just for compatibility
    */
   async chmod(path: PathLike, mode: string | number) {}
+
+  /**
+   * Manually clear the dir handle cache
+   */
+  clearDirCache() {
+    this.dirCache?.clear();
+  }
 
   private async readdirByHandle(base: string, parent: FileSystemDirectoryHandle, recursive?: boolean) {
     const files: string[] = [];
@@ -250,13 +329,13 @@ export class FsaPromises {
     return (typeof options === 'string' ? { encoding: options } : options || {}) as T;
   }
 
-  private getFileHandleByPath(path: PathLike, options?: FileSystemGetDirectoryOptions) {
-    return this.getFileHandleByPaths(splitPath(path), options, path);
+  private getFileHandleByPath(options: GetFileHandleByPathOptions) {
+    return this.getFileHandleByPaths({ paths: splitPath(options.path), ...options });
   }
 
-  private async getFileHandleByPaths(paths: string[], options?: FileSystemGetFileOptions, path?: PathLike) {
+  private async getFileHandleByPaths({ paths, options, path, ensureDir }: GetFileHandleByPathsOptions) {
     const { dirs, filename } = pathsToDirsAndFilename(paths);
-    const dirHandle = await this.getDirHandleByPaths(dirs, undefined, path);
+    const dirHandle = await this.getDirHandleByPaths({ paths: dirs, path, options: ensureDir ? { create: true } : undefined });
     try {
       return await dirHandle.getFileHandle(filename, options);
     } catch (e) {
@@ -264,18 +343,37 @@ export class FsaPromises {
     }
   }
 
-  private getDirHandleByPath(path: PathLike, options?: FileSystemGetDirectoryOptions, rootHandle = this.rootHandle) {
-    return this.getDirHandleByPaths(splitPath(path), options, path, rootHandle);
+  private getDirHandleByPath(options: GetDirHandleByPathOptions) {
+    return this.getDirHandleByPaths({ paths: splitPath(options.path), ...options });
   }
 
-  private async getDirHandleByPaths(
-    paths: string[],
-    options?: FileSystemGetDirectoryOptions,
-    path?: PathLike,
-    rootHandle = this.rootHandle,
-  ) {
-    if (!paths.length) return rootHandle;
+  private async getDirHandleByPaths({ paths, options, path, rootHandle = this.rootHandle, output }: GetDirHandleByPathsOptions) {
+    if (!paths.length) {
+      if (this.dirCache && output) {
+        output.dirCache = this.dirCache;
+      }
+      return rootHandle;
+    }
     try {
+      if (this.dirCache) {
+        const rootNodePromise: Promise<DirCacheNode> = rootHandle.then(handle => ({ handle, children: this.dirCache! }));
+        const targetNode = await paths.reduce<Promise<DirCacheNode>>(async (parentNodePromise, path): Promise<DirCacheNode> => {
+          const { handle: parentHandle, children: parentChildren } = await parentNodePromise;
+          const cachedNodePromise = parentChildren.get(path);
+          if (cachedNodePromise) return cachedNodePromise;
+          const nodePromise: Promise<DirCacheNode> = parentHandle
+            .getDirectoryHandle(path, options)
+            .then((handle): DirCacheNode => ({ handle, children: new Map() }))
+            .catch(e => {
+              parentChildren.delete(path);
+              throw e;
+            });
+          parentChildren.set(path, nodePromise);
+          return nodePromise;
+        }, rootNodePromise);
+        if (output) output.dirCache = targetNode.children;
+        return targetNode.handle;
+      }
       return await paths.reduce<Promise<FileSystemDirectoryHandle>>(
         async (dirHandle, path) => (await dirHandle).getDirectoryHandle(path, options),
         rootHandle,
