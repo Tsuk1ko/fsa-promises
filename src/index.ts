@@ -22,11 +22,12 @@ export type FsaPromisesWriteFileOptions =
   | null;
 
 interface DirCacheNode {
-  handle: FileSystemDirectoryHandle;
+  handle: Promise<FileSystemDirectoryHandle>;
   children: DirCache;
+  create: boolean;
 }
 
-type DirCache = Map<string, Promise<DirCacheNode>>;
+type DirCache = Map<string, DirCacheNode>;
 
 interface GetDirHandleByPathOptions {
   path: PathLike;
@@ -203,18 +204,18 @@ export class FsaPromises {
     const { dirs, filename } = pathsToDirsAndFilename(paths);
     const output: GetDirHandleByPathsOutput = {};
     const parent = await this.getDirHandleByPaths({ paths: dirs, path, output });
+    if (output.dirCache?.has(filename)) {
+      return;
+    }
     if (await this.isDirExistOnHandle(parent, filename)) {
       throw createError(FsaErrorCode.EEXIST, path, 'mkdir');
     }
-    if (output.dirCache?.has(filename)) {
-      await output.dirCache.get(filename);
-      return;
-    }
     const handlePromise = parent.getDirectoryHandle(filename, { create: true });
-    output.dirCache?.set(
-      filename,
-      handlePromise.then(handle => ({ handle, children: new Map() })),
-    );
+    output.dirCache?.set(filename, {
+      handle: handlePromise,
+      children: new Map(),
+      create: true,
+    });
     await handlePromise.catch(e => {
       output.dirCache?.delete(filename);
       throw e;
@@ -412,26 +413,40 @@ export class FsaPromises {
     }
     try {
       if (this.dirCache) {
-        const rootNodePromise: Promise<DirCacheNode> = rootHandle.then(handle => ({
-          handle,
-          children: this.dirCache!,
-        }));
+        const rootNode: DirCacheNode = {
+          handle: rootHandle,
+          children: this.dirCache,
+          create: true,
+        };
+        const create = options?.create ?? false;
         const targetNode = await paths.reduce<Promise<DirCacheNode>>(
           async (parentNodePromise, path): Promise<DirCacheNode> => {
             const { handle: parentHandle, children: parentChildren } = await parentNodePromise;
-            const cachedNodePromise = parentChildren.get(path);
-            if (cachedNodePromise) return cachedNodePromise;
-            const nodePromise: Promise<DirCacheNode> = parentHandle
-              .getDirectoryHandle(path, options)
-              .then((handle): DirCacheNode => ({ handle, children: new Map() }))
-              .catch(e => {
-                parentChildren.delete(path);
-                throw e;
-              });
-            parentChildren.set(path, nodePromise);
-            return nodePromise;
+            const cachedNode = parentChildren.get(path);
+            if (
+              cachedNode &&
+              !(
+                create &&
+                !cachedNode.create &&
+                (await cachedNode.handle.then(() => false).catch(() => true))
+              )
+            ) {
+              return cachedNode;
+            }
+            const node: DirCacheNode = {
+              handle: parentHandle
+                .then(handle => handle.getDirectoryHandle(path, options))
+                .catch(e => {
+                  parentChildren.delete(path);
+                  throw e;
+                }),
+              children: new Map(),
+              create,
+            };
+            parentChildren.set(path, node);
+            return node;
           },
-          rootNodePromise,
+          Promise.resolve(rootNode),
         );
         if (output) output.dirCache = targetNode.children;
         return targetNode.handle;
