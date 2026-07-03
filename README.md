@@ -144,3 +144,9 @@ Do nothing, just for compatibility.
 ### `clearDirCache()`
 
 Clear directory handle cache.
+
+## Limitations
+
+### `writeFile` with the `x` flag is not atomic
+
+The Web File System API has no atomic exclusive-create primitive, so the `x` flag is emulated with an existence check before writing. This check-then-write is not atomic: if another writer creates the file in between, the exclusivity guarantee can be violated. Do not rely on `wx` / `ax` for concurrency-safe locking.
