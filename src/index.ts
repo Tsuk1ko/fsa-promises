@@ -84,9 +84,7 @@ export class FsaPromises {
         options: { create: true },
         rootHandle: navigator.storage.getDirectory(),
       });
-      return;
-    }
-    this.rootHandle = Promise.resolve(root);
+    } else this.rootHandle = Promise.resolve(root);
   }
 
   readFile(path: PathLike, options?: { encoding?: null } | null): Promise<Buffer>;
@@ -242,6 +240,8 @@ export class FsaPromises {
 
   async exists(path: PathLike) {
     try {
+      const paths = splitPath(path);
+      if (!paths.length) return true;
       await this.getFileHandleByPath({ path });
       return true;
     } catch (e) {

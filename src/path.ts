@@ -15,7 +15,7 @@ export const pathLikeToString = (path: PathLike) => {
 export const splitPath = (pathLike: PathLike) => {
   const path = pathLikeToString(pathLike);
   if (!path) return [];
-  const paths = path.split(/[/\\]/);
+  const paths = path.split(/[/\\]+/);
   const result: string[] = [];
   for (const path of paths) {
     if (!path || path === '.') continue;
