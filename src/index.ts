@@ -1,11 +1,11 @@
 import { Buffer } from 'buffer/';
 import { Dirent } from './dirent';
-import { FileType } from './types';
-import type { Abortable, ObjectEncodingOptions, BufferEncoding, OpenMode, PathLike } from './types';
-import { BigIntStats, Stats } from './stat';
-import { joinPaths, pathsToDirsAndFilename, splitPath, splitPathToDirsAndFilename } from './path';
-import { decodeBuffer, encodeString } from './textCoder';
 import { createError, FsaError, FsaErrorCode } from './error';
+import { FileType } from './internalTypes';
+import { joinPaths, pathsToDirsAndFilename, splitPath, splitPathToDirsAndFilename } from './path';
+import { BigIntStats, Stats } from './stat';
+import { decodeBuffer, encodeString } from './textCoder';
+import type { Abortable, BufferEncoding, ObjectEncodingOptions, OpenMode, PathLike } from './types';
 
 export interface FsaPromisesOptions {
   /** File system root */
@@ -71,7 +71,9 @@ export class FsaPromises {
       root = '',
       useSyncAccessHandleForFile = false,
       cacheDirHandle = false,
-    } = typeof options === 'string' || options instanceof FileSystemDirectoryHandle || options instanceof Promise
+    } = typeof options === 'string' ||
+    options instanceof FileSystemDirectoryHandle ||
+    options instanceof Promise
       ? { root: options }
       : options || {};
     this.useSyncAccessHandleForFile = useSyncAccessHandleForFile;
@@ -89,7 +91,10 @@ export class FsaPromises {
 
   readFile(path: PathLike, options?: { encoding?: null } | null): Promise<Buffer>;
   readFile(path: PathLike, options: { encoding: BufferEncoding } | BufferEncoding): Promise<string>;
-  async readFile(path: PathLike, options?: ObjectEncodingOptions | BufferEncoding | null): Promise<string | Buffer> {
+  async readFile(
+    path: PathLike,
+    options?: ObjectEncodingOptions | BufferEncoding | null,
+  ): Promise<string | Buffer> {
     const { encoding } = this.normalizeOptions(options);
     const handle = await this.getFileHandleByPath({ path });
     const content = await (await handle.getFile()).arrayBuffer();
@@ -99,7 +104,7 @@ export class FsaPromises {
 
   async writeFile(
     path: PathLike,
-    data: Buffer | ArrayBuffer | ArrayBufferView | Blob | string,
+    data: Buffer | ArrayBuffer | ArrayBufferView<ArrayBuffer> | Blob | string,
     options?: FsaPromisesWriteFileOptions,
   ): Promise<void> {
     const { encoding, signal, flag, flush, ensureDir } = this.normalizeOptions(options);
@@ -117,7 +122,11 @@ export class FsaPromises {
       const writeHandle = await handle.createSyncAccessHandle();
       try {
         writeHandle.write(
-          typeof data === 'string' ? Buffer.from(data) : data instanceof Blob ? await data.arrayBuffer() : data,
+          typeof data === 'string'
+            ? Buffer.from(data)
+            : data instanceof Blob
+              ? await data.arrayBuffer()
+              : data,
           isAppend ? { at: writeHandle.getSize() } : undefined,
         );
         if (flush) writeHandle.flush();
@@ -148,18 +157,32 @@ export class FsaPromises {
       await handle.getFileHandle(filename);
     } catch (e) {
       if (this.isTypeMismatchError(e)) {
-        throw createError(this.isTypeMismatchError(e) ? FsaErrorCode.EPERM : FsaErrorCode.ENOENT, path, 'unlink', e);
+        throw createError(
+          this.isTypeMismatchError(e) ? FsaErrorCode.EPERM : FsaErrorCode.ENOENT,
+          path,
+          'unlink',
+          e,
+        );
       }
     }
     await handle.removeEntry(filename);
   }
 
-  readdir(path: PathLike, options?: { withFileTypes?: false; recursive?: boolean } | null): Promise<string[]>;
-  readdir(path: PathLike, options: { encoding: 'buffer'; withFileTypes?: false; recursive?: boolean } | 'buffer'): Promise<Buffer[]>;
+  readdir(
+    path: PathLike,
+    options?: { withFileTypes?: false; recursive?: boolean } | null,
+  ): Promise<string[]>;
+  readdir(
+    path: PathLike,
+    options: { encoding: 'buffer'; withFileTypes?: false; recursive?: boolean } | 'buffer',
+  ): Promise<Buffer[]>;
   readdir(path: PathLike, options: { withFileTypes: true; recursive?: boolean }): Promise<Dirent[]>;
   async readdir(
     path: PathLike,
-    options?: { encoding?: 'buffer' | null; withFileTypes?: boolean; recursive?: boolean } | 'buffer' | null,
+    options?:
+      | { encoding?: 'buffer' | null; withFileTypes?: boolean; recursive?: boolean }
+      | 'buffer'
+      | null,
   ): Promise<string[] | Buffer[] | Dirent[]> {
     const { encoding, withFileTypes, recursive } = this.normalizeOptions(options);
     const paths = splitPath(path);
@@ -257,6 +280,7 @@ export class FsaPromises {
   /**
    * Not implemented, don't use
    */
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async readlink(path: PathLike, options?: any) {
     throw new Error('Not implemented: readlink');
   }
@@ -264,6 +288,7 @@ export class FsaPromises {
   /**
    * Not implemented, don't use
    */
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async symlink(target: PathLike, path: PathLike, type?: string | null) {
     throw new Error('Not implemented: symlink');
   }
@@ -271,6 +296,7 @@ export class FsaPromises {
   /**
    * Do nothing, just for compatibility
    */
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async chmod(path: PathLike, mode: string | number) {}
 
   /**
@@ -280,22 +306,38 @@ export class FsaPromises {
     this.dirCache?.clear();
   }
 
-  private async readdirByHandle(base: string, parent: FileSystemDirectoryHandle, recursive?: boolean) {
+  private async readdirByHandle(
+    base: string,
+    parent: FileSystemDirectoryHandle,
+    recursive?: boolean,
+  ) {
     const files: string[] = [];
     for await (const handle of parent.values()) {
       const name = base ? `${base}/${handle.name}` : handle.name;
       files.push(name);
       if (recursive && handle.kind === 'directory') {
-        files.push(...(await this.readdirByHandle(name, handle as FileSystemDirectoryHandle, recursive)));
+        files.push(
+          ...(await this.readdirByHandle(name, handle as FileSystemDirectoryHandle, recursive)),
+        );
       }
     }
     return files;
   }
 
-  private async readdirToDirentByHandle(base: string, parent: FileSystemDirectoryHandle, recursive?: boolean) {
+  private async readdirToDirentByHandle(
+    base: string,
+    parent: FileSystemDirectoryHandle,
+    recursive?: boolean,
+  ) {
     const files: Dirent[] = [];
     for await (const handle of parent.values()) {
-      files.push(Dirent.create(handle.name, base || '.', handle.kind === 'directory' ? FileType.Directory : FileType.File));
+      files.push(
+        Dirent.create(
+          handle.name,
+          base || '.',
+          handle.kind === 'directory' ? FileType.Directory : FileType.File,
+        ),
+      );
       if (recursive && handle.kind === 'directory') {
         files.push(
           ...(await this.readdirToDirentByHandle(
@@ -332,9 +374,18 @@ export class FsaPromises {
     return this.getFileHandleByPaths({ paths: splitPath(options.path), ...options });
   }
 
-  private async getFileHandleByPaths({ paths, options, path, ensureDir }: GetFileHandleByPathsOptions) {
+  private async getFileHandleByPaths({
+    paths,
+    options,
+    path,
+    ensureDir,
+  }: GetFileHandleByPathsOptions) {
     const { dirs, filename } = pathsToDirsAndFilename(paths);
-    const dirHandle = await this.getDirHandleByPaths({ paths: dirs, path, options: ensureDir ? { create: true } : undefined });
+    const dirHandle = await this.getDirHandleByPaths({
+      paths: dirs,
+      path,
+      options: ensureDir ? { create: true } : undefined,
+    });
     try {
       return await dirHandle.getFileHandle(filename, options);
     } catch (e) {
@@ -346,7 +397,13 @@ export class FsaPromises {
     return this.getDirHandleByPaths({ paths: splitPath(options.path), ...options });
   }
 
-  private async getDirHandleByPaths({ paths, options, path, rootHandle = this.rootHandle, output }: GetDirHandleByPathsOptions) {
+  private async getDirHandleByPaths({
+    paths,
+    options,
+    path,
+    rootHandle = this.rootHandle,
+    output,
+  }: GetDirHandleByPathsOptions) {
     if (!paths.length) {
       if (this.dirCache && output) {
         output.dirCache = this.dirCache;
@@ -355,21 +412,27 @@ export class FsaPromises {
     }
     try {
       if (this.dirCache) {
-        const rootNodePromise: Promise<DirCacheNode> = rootHandle.then(handle => ({ handle, children: this.dirCache! }));
-        const targetNode = await paths.reduce<Promise<DirCacheNode>>(async (parentNodePromise, path): Promise<DirCacheNode> => {
-          const { handle: parentHandle, children: parentChildren } = await parentNodePromise;
-          const cachedNodePromise = parentChildren.get(path);
-          if (cachedNodePromise) return cachedNodePromise;
-          const nodePromise: Promise<DirCacheNode> = parentHandle
-            .getDirectoryHandle(path, options)
-            .then((handle): DirCacheNode => ({ handle, children: new Map() }))
-            .catch(e => {
-              parentChildren.delete(path);
-              throw e;
-            });
-          parentChildren.set(path, nodePromise);
-          return nodePromise;
-        }, rootNodePromise);
+        const rootNodePromise: Promise<DirCacheNode> = rootHandle.then(handle => ({
+          handle,
+          children: this.dirCache!,
+        }));
+        const targetNode = await paths.reduce<Promise<DirCacheNode>>(
+          async (parentNodePromise, path): Promise<DirCacheNode> => {
+            const { handle: parentHandle, children: parentChildren } = await parentNodePromise;
+            const cachedNodePromise = parentChildren.get(path);
+            if (cachedNodePromise) return cachedNodePromise;
+            const nodePromise: Promise<DirCacheNode> = parentHandle
+              .getDirectoryHandle(path, options)
+              .then((handle): DirCacheNode => ({ handle, children: new Map() }))
+              .catch(e => {
+                parentChildren.delete(path);
+                throw e;
+              });
+            parentChildren.set(path, nodePromise);
+            return nodePromise;
+          },
+          rootNodePromise,
+        );
         if (output) output.dirCache = targetNode.children;
         return targetNode.handle;
       }
@@ -383,7 +446,7 @@ export class FsaPromises {
   }
 }
 
-export type { PathLike } from './types';
 export * from './dirent';
-export * from './stat';
 export { FsaError, FsaErrorCode } from './error';
+export * from './stat';
+export * from './types';

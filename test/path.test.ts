@@ -1,5 +1,5 @@
-import { expect, test, describe } from 'bun:test';
 import { Buffer } from 'buffer/';
+import { describe, expect, test } from 'bun:test';
 import { pathLikeToString, pathsToDirsAndFilename, splitPath } from '../src/path';
 
 describe('pathLikeToString', () => {

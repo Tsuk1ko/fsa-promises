@@ -1,6 +1,11 @@
-import { FileType } from './types';
+import { FileType } from './internalTypes';
 
 abstract class StatsBase<T extends number | bigint> {
+  atime: Date;
+  mtime: Date;
+  ctime: Date;
+  birthtime: Date;
+
   #type: FileType;
 
   abstract dev: T;
@@ -17,10 +22,6 @@ abstract class StatsBase<T extends number | bigint> {
   abstract mtimeMs: T;
   abstract ctimeMs: T;
   abstract birthtimeMs: T;
-  atime: Date;
-  mtime: Date;
-  ctime: Date;
-  birthtime: Date;
 
   constructor(file?: File) {
     this.#type = file ? FileType.File : FileType.Directory;

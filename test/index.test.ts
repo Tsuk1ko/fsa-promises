@@ -1,9 +1,10 @@
-import { expect, test, describe, beforeEach, afterEach } from 'bun:test';
-import { mock } from 'fsa-mock';
 import { Buffer } from 'buffer/';
-import { type Dirent, FsaPromises } from '../src';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { mock } from 'fsa-mock';
+import { FsaPromises } from '../src';
+import type { Dirent } from '../src';
 
-(self.navigator as any).storage = {
+(globalThis.navigator as any).storage = {
   getDirectory: () => showDirectoryPicker({ mode: 'readwrite' }),
 };
 
@@ -355,7 +356,8 @@ describe('cache dir handle', () => {
 
     expect(dirCache).toBeDefined();
 
-    const checkFooBarDir = async () => expect((await dirCache.get('foo'))?.children.has('bar')).toBeTrue();
+    const checkFooBarDir = async () =>
+      expect((await dirCache.get('foo'))?.children.has('bar')).toBeTrue();
 
     // write
     await fs.writeFile(filepath, CONTENT_BUFFER);

@@ -1,7 +1,13 @@
 import type { PathLike } from './types';
 
 export class FsaError extends Error {
-  constructor(message: string, public readonly code: string, public readonly syscall: string, public readonly path: string, cause?: any) {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly syscall: string,
+    readonly path: string,
+    cause?: any,
+  ) {
     super(`${code}: ${message}`, { cause });
   }
 }

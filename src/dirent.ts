@@ -1,9 +1,13 @@
-import { FileType } from './types';
+import { FileType } from './internalTypes';
 
 export class Dirent {
   #type: FileType;
 
-  private constructor(public name: string, public parentPath: string, type: FileType) {
+  private constructor(
+    public name: string,
+    public parentPath: string,
+    type: FileType,
+  ) {
     this.#type = type;
   }
 
@@ -12,6 +16,10 @@ export class Dirent {
    */
   get path() {
     return this.parentPath;
+  }
+
+  static create(name: string, parentPath: string, type: FileType) {
+    return new Dirent(name, parentPath, type);
   }
 
   isFile() {
@@ -40,9 +48,5 @@ export class Dirent {
 
   isSocket() {
     return false;
-  }
-
-  static create(name: string, parentPath: string, type: FileType) {
-    return new Dirent(name, parentPath, type);
   }
 }

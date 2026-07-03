@@ -1,10 +1,5 @@
 import type { Buffer } from 'buffer/';
 
-export enum FileType {
-  File,
-  Directory,
-}
-
 export type PathLike = string | Buffer | URL;
 
 export type OpenMode = number | string;

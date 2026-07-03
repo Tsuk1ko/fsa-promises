@@ -42,6 +42,7 @@ export const pathsToDirsAndFilename = (paths: string[]) => {
   };
 };
 
-export const splitPathToDirsAndFilename = (path: PathLike) => pathsToDirsAndFilename(splitPath(path));
+export const splitPathToDirsAndFilename = (path: PathLike) =>
+  pathsToDirsAndFilename(splitPath(path));
 
 export const joinPaths = (paths: string[]) => paths.join('/');
