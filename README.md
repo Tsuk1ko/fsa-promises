@@ -4,9 +4,6 @@ Web File System API to Node fs promises API.
 
 Learn more about: [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API)
 
-> [!NOTE]  
-> This library was originally implemented for use with [isomorphic-git](https://github.com/isomorphic-git/isomorphic-git). But the actual test found that the performance was so bad and there were inexplicable problems, so I gave up. ☹️
-
 [![NPM version](https://img.shields.io/npm/v/@tsuk1ko/fsa-promises?style=flat-square)](https://www.npmjs.com/package/@tsuk1ko/fsa-promises)
 
 ## Install
