@@ -12,7 +12,10 @@
     }
   },
   "sideEffects": false,
-  "repository": "github:Tsuk1ko/fsa-promises",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tsuk1ko/fsa-promises.git"
+  },
   "keywords": [
     "node",
     "fs",
